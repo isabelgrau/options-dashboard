@@ -1,0 +1,87 @@
+"""
+Scaffolding layer: pulls raw market data for the options dashboard.
+No analytical judgment lives here — just fetching and light shaping.
+"""
+
+import yfinance as yf
+import pandas as pd
+from datetime import datetime
+
+
+def get_available_expiries(ticker: str) -> list[str]:
+    """Return list of expiry date strings (YYYY-MM-DD) available for the ticker."""
+    tk = yf.Ticker(ticker)
+    return list(tk.options)
+
+
+def fetch_option_chain(ticker: str, expiry: str) -> dict:
+    """
+    Pull the full chain for one expiry.
+
+    Returns:
+        {"calls": DataFrame, "puts": DataFrame}
+
+    Each DataFrame has yfinance's native columns — the ones you'll care about:
+        strike, lastPrice, bid, ask, impliedVolatility, openInterest, volume
+    """
+    tk = yf.Ticker(ticker)
+    chain = tk.option_chain(expiry)
+    return {"calls": chain.calls, "puts": chain.puts}
+
+
+def get_leg_quote(ticker: str, expiry: str, strike: float, option_type: str) -> dict:
+    """
+    Convenience lookup for a single leg (one strike, one side) from the chain.
+
+    option_type: "call" or "put"
+
+    Returns a dict with at least: strike, lastPrice, bid, ask, impliedVolatility
+    Returns None if the strike isn't found (e.g. bad strike input).
+    """
+    side = fetch_option_chain(ticker, expiry)["calls" if option_type == "call" else "puts"]
+    row = side[side["strike"] == strike]
+    if row.empty:
+        return None
+    return row.iloc[0].to_dict()
+
+
+def fetch_vix() -> float:
+    """Current VIX close (most recent available trading day)."""
+    vix = yf.Ticker("^VIX")
+    hist = vix.history(period="5d")
+    return float(hist["Close"].iloc[-1])
+
+
+def fetch_price_history(ticker: str, period: str = "1y") -> pd.Series:
+    """
+    Daily close price history — the raw input for historical volatility (HV),
+    which you'll compute yourself in analytics.py.
+    """
+    tk = yf.Ticker(ticker)
+    hist = tk.history(period=period)
+    return hist["Close"]
+
+
+def get_days_to_earnings(ticker: str) -> int | None:
+    """
+    Days from today to the next scheduled earnings date, or None if unavailable.
+
+    Gotcha: yfinance's earnings_dates can return past AND future dates, and
+    occasionally comes back empty depending on the ticker and yfinance version.
+    This filters to future dates only and takes the nearest one.
+    """
+    tk = yf.Ticker(ticker)
+    try:
+        dates = tk.earnings_dates
+    except Exception:
+        return None
+    if dates is None or dates.empty:
+        return None
+
+    today = pd.Timestamp.now(tz=dates.index.tz)
+    future = dates[dates.index >= today]
+    if future.empty:
+        return None
+
+    next_date = future.index.min()
+    return (next_date - today).days
