@@ -54,6 +54,25 @@ def compute_max_profit_loss(
     """
     Return {"max_profit": float, "max_loss": float} per contract (pre-multiplier).
     """
+    spread = abs(long_strike - short_strike)
+    net_pmt = abs(long_price - short_price)
+
+    # debit spreads
+    # bull call spread - buy lower strike, sell higher strike
+    # bear put spread - buy higher strike, sell lower strike
+    if (option_type == 'call' and short_strike > long_strike) or (option_type == 'put' and short_strike < long_strike):
+        max_profit = spread - net_pmt
+        max_loss = -1 * net_pmt
+
+    # credit spreads
+    # bear call spread - sell lower strike, buy higher strike
+    # bull put spread - sell higher strike, buy lower strike
+    else:
+        max_profit = net_pmt
+        max_loss = net_pmt - spread
+ 
+    return max_profit, max_loss
+    
     raise NotImplementedError
 
 

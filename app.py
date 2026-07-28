@@ -15,8 +15,8 @@ from analytics import (
     compute_iv_rank,
 )
 
-st.set_page_config(page_title="Options shadow dashboard", layout="wide")
-st.title("Options shadow dashboard")
+st.set_page_config(page_title="Options Trading Dashboard", page_icon="📈", layout="wide")
+st.title("Options Trading Dashboard")
 
 # ---- Sidebar: how many tickers to compare ----
 num_tickers = st.sidebar.radio("Tickers to compare", [1, 2, 3], index=0)
