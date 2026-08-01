@@ -15,8 +15,8 @@ from analytics import (
     compute_iv_rank,
 )
 
-st.set_page_config(page_title="Options Trading Dashboard", page_icon="📈", layout="wide")
-st.title("Options Trading Dashboard")
+st.set_page_config(page_title="Options shadow dashboard", layout="wide")
+st.title("Options shadow dashboard")
 
 # ---- Sidebar: how many tickers to compare ----
 num_tickers = st.sidebar.radio("Tickers to compare", [1, 2, 3], index=0)
@@ -79,7 +79,7 @@ def render_ticker_panel(ticker: str):
         breakevens = compute_breakevens(long_strike, long_price, short_strike, short_price, option_type)
         max_pl = compute_max_profit_loss(long_strike, long_price, short_strike, short_price, option_type)
         st.caption(
-            f"Breakeven: {', '.join(f'{b:.2f}' for b in breakevens)}  |  "
+            f"Breakeven: {breakevens:.2f}  |  "
             f"Max profit: {max_pl['max_profit']:.2f}  |  Max loss: {max_pl['max_loss']:.2f}"
         )
     except NotImplementedError:

@@ -3,17 +3,27 @@ Scaffolding layer: pulls raw market data for the options dashboard.
 No analytical judgment lives here — just fetching and light shaping.
 """
 
+import streamlit as st
 import yfinance as yf
 import pandas as pd
 from datetime import datetime
 
+# Cache TTLs are deliberately short — long enough to kill repeat calls while
+# you're tweaking strikes on the same page load, short enough that you're not
+# looking at stale prices if you come back later in the day.
+CHAIN_CACHE_TTL = 5 * 60   # 5 min — chain data (strikes, IV) moves during market hours
+VIX_CACHE_TTL = 5 * 60     # 5 min
+EARNINGS_CACHE_TTL = 60 * 60 * 12  # 12 hr — earnings dates don't move intraday
 
+
+@st.cache_data(ttl=CHAIN_CACHE_TTL)
 def get_available_expiries(ticker: str) -> list[str]:
     """Return list of expiry date strings (YYYY-MM-DD) available for the ticker."""
     tk = yf.Ticker(ticker)
     return list(tk.options)
 
 
+@st.cache_data(ttl=CHAIN_CACHE_TTL)
 def fetch_option_chain(ticker: str, expiry: str) -> dict:
     """
     Pull the full chain for one expiry.
@@ -45,6 +55,7 @@ def get_leg_quote(ticker: str, expiry: str, strike: float, option_type: str) -> 
     return row.iloc[0].to_dict()
 
 
+@st.cache_data(ttl=VIX_CACHE_TTL)
 def fetch_vix() -> float:
     """Current VIX close (most recent available trading day)."""
     vix = yf.Ticker("^VIX")
@@ -52,6 +63,7 @@ def fetch_vix() -> float:
     return float(hist["Close"].iloc[-1])
 
 
+@st.cache_data(ttl=CHAIN_CACHE_TTL)
 def fetch_price_history(ticker: str, period: str = "1y") -> pd.Series:
     """
     Daily close price history — the raw input for historical volatility (HV),
@@ -62,6 +74,7 @@ def fetch_price_history(ticker: str, period: str = "1y") -> pd.Series:
     return hist["Close"]
 
 
+@st.cache_data(ttl=EARNINGS_CACHE_TTL)
 def get_days_to_earnings(ticker: str) -> int | None:
     """
     Days from today to the next scheduled earnings date, or None if unavailable.

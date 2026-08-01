@@ -27,7 +27,28 @@ def compute_vertical_spread_payoff(
         )
     and plot prices vs. pnl directly.
     """
-    raise NotImplementedError
+
+    net_pmt = abs(long_price - short_price)
+
+    # Bull call:    max(price - long_strike,0) - max(price - short_strike,0) - premium
+    # Bear put:     max(long_strike - price, 0) - max(short_strike - price,0) - premium
+    # Bear call:    max(price - long_strike,0) - max(price - short_strike,0) + premium
+    # Bull put:     max(long_strike - price, 0) - max(short_strike - price,0) + premium
+
+    if option_type == 'call':
+        payoff = np.maximum(price_range - long_strike, 0) - np.maximum(price_range - short_strike,0)
+        if long_strike < short_strike: # debit
+            net_payoff = payoff - net_pmt
+        else: # credit
+            net_payoff = payoff + net_pmt
+    else: # put
+        payoff = np.maximum(long_strike - price_range, 0) - np.maximum(short_strike - price_range, 0)
+        if long_strike > short_strike: # debit
+            net_payoff = payoff - net_pmt
+        else: # credit
+            net_payoff = payoff + net_pmt
+
+    return net_payoff
 
 
 def compute_breakevens(
@@ -36,12 +57,17 @@ def compute_breakevens(
     short_strike: float,
     short_price: float,
     option_type: str
-) -> list[float]:
-    """
-    Return the breakeven price(s) for the spread — usually one value for a
-    2-leg vertical, but return a list for consistency in case you extend this.
-    """
-    raise NotImplementedError
+) -> float:
+    """Return the breakeven price for the spread."""
+
+    net_pmt = abs(long_price - short_price)
+
+    if option_type == 'call':
+        breakeven = min(long_strike, short_strike) + net_pmt
+    else:
+        breakeven = max(long_strike, short_strike) - net_pmt
+
+    return breakeven
 
 
 def compute_max_profit_loss(
@@ -71,7 +97,7 @@ def compute_max_profit_loss(
         max_profit = net_pmt
         max_loss = net_pmt - spread
  
-    return max_profit, max_loss
+    return {"max_profit": max_profit, "max_loss": max_loss}
     
     raise NotImplementedError
 
