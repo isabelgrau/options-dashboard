@@ -86,8 +86,11 @@ def get_days_to_earnings(ticker: str) -> int | None:
     tk = yf.Ticker(ticker)
     try:
         dates = tk.earnings_dates
-    except Exception:
+    except (KeyError, IndexError, ValueError):
+        # Genuinely "no earnings data available" cases from yfinance's side.
         return None
+    # Anything else (missing dependency, network error, etc.) will now raise
+    # and show up as a real Streamlit error instead of a silent "—".
     if dates is None or dates.empty:
         return None
 
