@@ -98,8 +98,6 @@ def compute_max_profit_loss(
         max_loss = net_pmt - spread
  
     return {"max_profit": max_profit, "max_loss": max_loss}
-    
-    raise NotImplementedError
 
 
 def compute_iv_rank(
