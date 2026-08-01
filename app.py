@@ -61,8 +61,10 @@ def render_ticker_panel(ticker: str):
 
     # --- payoff chart: calls into your analytics.py ---
     try:
-        underlying_price = (long_strike + short_strike) / 2  # rough center for range; refine if you want spot price instead
-        price_range = np.linspace(underlying_price * 0.85, underlying_price * 1.15, 200)
+        strike_low = min(long_strike, short_strike)
+        strike_high = max(long_strike, short_strike)
+        padding = (strike_high - strike_low) * 0.3  # ensures flat regions are always visible
+        price_range = np.linspace(strike_low - padding, strike_high + padding, 200)
         pnl = compute_vertical_spread_payoff(
             long_strike, long_price, short_strike, short_price, option_type, price_range
         )
