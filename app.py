@@ -64,6 +64,7 @@ def render_ticker_panel(ticker: str):
     short_price = short_leg["lastPrice"]
 
     # --- payoff chart: calls into your analytics.py ---
+    spot_price = None
     try:
         strike_low = min(long_strike, short_strike)
         strike_high = max(long_strike, short_strike)
@@ -87,6 +88,8 @@ def render_ticker_panel(ticker: str):
         st.info("Payoff chart will render once compute_vertical_spread_payoff is filled in (analytics.py).")
 
     # --- breakevens / max profit-loss ---
+    breakevens = None
+    max_pl = None
     try:
         breakevens = compute_breakevens(long_strike, long_price, short_strike, short_price, option_type)
         max_pl = compute_max_profit_loss(long_strike, long_price, short_strike, short_price, option_type)
@@ -105,6 +108,21 @@ def render_ticker_panel(ticker: str):
     m1, m2 = st.columns(2)
     m1.metric("IV (current)", iv_display)
     m2.metric("Earnings in", f"{days_to_earnings}d" if days_to_earnings is not None else "—")
+
+    # --- log this view to the daily snapshot sheet, if we have real numbers ---
+    if breakevens is not None and max_pl is not None:
+        try:
+            logged = log_snapshot_if_new(
+                ticker=ticker, expiry=expiry, option_type=option_type,
+                long_strike=long_strike, short_strike=short_strike,
+                iv=iv, spot_price=spot_price,
+                breakeven=breakevens, max_profit=max_pl["max_profit"], max_loss=max_pl["max_loss"],
+                days_to_earnings=days_to_earnings, vix=vix,
+            )
+            if logged:
+                st.caption("📝 Logged today's snapshot for this spread.")
+        except Exception as e:
+            st.caption(f"⚠️ Couldn't log to Sheets: {e}")
 
 
 cols = st.columns(num_tickers)

@@ -5,3 +5,4 @@ numpy
 plotly
 lxml
 gspread
+google-auth
