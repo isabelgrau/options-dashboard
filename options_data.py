@@ -76,6 +76,19 @@ def fetch_current_price(ticker: str) -> float | None:
 
 
 @st.cache_data(ttl=VIX_CACHE_TTL)
+def fetch_risk_free_rate() -> float:
+    """
+    13-week Treasury bill yield (^IRX), as a decimal (e.g. 0.052 for 5.2%).
+    Used as the risk-free rate input for Greeks — a standard proxy for
+    short-dated options; not exact for every expiry, but the Greeks
+    aren't very sensitive to small changes in this input.
+    """
+    tbill = yf.Ticker("^IRX")
+    hist = tbill.history(period="5d")
+    return float(hist["Close"].iloc[-1]) / 100
+
+
+@st.cache_data(ttl=VIX_CACHE_TTL)
 def fetch_vix() -> float:
     """Current VIX close (most recent available trading day)."""
     vix = yf.Ticker("^VIX")

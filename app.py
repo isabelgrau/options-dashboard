@@ -8,8 +8,10 @@ from options_data import (
     get_company_name,
     fetch_current_price,
     fetch_vix,
+    fetch_risk_free_rate,
     get_days_to_earnings,
 )
+from greeks import compute_leg_greeks, compute_spread_greeks
 from sheets_log import log_snapshot_if_new
 from analytics import (
     compute_vertical_spread_payoff,
@@ -28,6 +30,7 @@ for i in range(num_tickers):
     tickers.append(st.sidebar.text_input(f"Ticker {i + 1}", value=default, key=f"ticker_{i}"))
 
 vix = fetch_vix()
+risk_free_rate = fetch_risk_free_rate()
 st.caption(f"VIX: {vix:.1f}")
 
 
@@ -109,15 +112,34 @@ def render_ticker_panel(ticker: str):
     m1.metric("IV (current)", iv_display)
     m2.metric("Earnings in", f"{days_to_earnings}d" if days_to_earnings is not None else "—")
 
+    # --- Greeks: net position (long leg minus short leg), each leg using its own IV ---
+    spread_greeks = None
+    if spot_price is not None:
+        long_iv = long_leg.get("impliedVolatility")
+        short_iv = short_leg.get("impliedVolatility")
+        if long_iv is not None and short_iv is not None:
+            long_greeks = compute_leg_greeks(option_type, spot_price, long_strike, expiry, risk_free_rate, long_iv)
+            short_greeks = compute_leg_greeks(option_type, spot_price, short_strike, expiry, risk_free_rate, short_iv)
+            spread_greeks = compute_spread_greeks(long_greeks, short_greeks)
+
+            g1, g2, g3, g4 = st.columns(4)
+            g1.metric("Delta", f"{spread_greeks['delta']:.3f}")
+            g2.metric("Gamma", f"{spread_greeks['gamma']:.3f}")
+            g3.metric("Theta", f"{spread_greeks['theta']:.3f}")
+            g4.metric("Vega", f"{spread_greeks['vega']:.3f}")
+
     # --- log this view to the daily snapshot sheet, if we have real numbers ---
     if breakevens is not None and max_pl is not None:
         try:
+            greeks_kwargs = spread_greeks or {}
             logged = log_snapshot_if_new(
                 ticker=ticker, expiry=expiry, option_type=option_type,
                 long_strike=long_strike, short_strike=short_strike,
                 iv=iv, spot_price=spot_price,
                 breakeven=breakevens, max_profit=max_pl["max_profit"], max_loss=max_pl["max_loss"],
                 days_to_earnings=days_to_earnings, vix=vix,
+                delta=greeks_kwargs.get("delta"), gamma=greeks_kwargs.get("gamma"),
+                theta=greeks_kwargs.get("theta"), vega=greeks_kwargs.get("vega"),
             )
             if logged:
                 st.caption("📝 Logged today's snapshot for this spread.")

@@ -1,0 +1,30 @@
+name: Daily options snapshot
+
+on:
+  schedule:
+    # 21:30 UTC ≈ 5:30pm ET (EDT) / 4:30pm ET (EST) — after market close either way.
+    # Cron doesn't handle DST, so this drifts by an hour twice a year; fine for a
+    # once-daily snapshot, not worth over-engineering.
+    - cron: "30 21 * * 1-5"  # weekdays only
+  workflow_dispatch: {}       # lets you trigger it manually from the Actions tab, for testing
+
+jobs:
+  log-snapshot:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Restore Streamlit secrets
+        run: |
+          mkdir -p .streamlit
+          echo "${{ secrets.STREAMLIT_SECRETS_TOML }}" > .streamlit/secrets.toml
+
+      - name: Run daily snapshot
+        run: python scheduled_snapshot.py

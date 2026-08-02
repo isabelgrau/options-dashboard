@@ -6,3 +6,4 @@ plotly
 lxml
 gspread
 google-auth
+py_vollib

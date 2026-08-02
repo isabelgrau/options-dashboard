@@ -23,7 +23,8 @@ COLUMNS = [
     "long_strike", "short_strike",
     "iv", "spot_price", "breakeven", "max_profit", "max_loss",
     "days_to_earnings", "vix",
-    "iv_rank_manual",  # left blank on write — fill in by hand from IBKR desktop
+    "delta", "gamma", "theta", "vega",
+    "iv_rank_manual", "iv_percentile_manual", "iv_hv_ratio_manual",  # fill in by hand
 ]
 
 SCOPES = [
@@ -84,23 +85,37 @@ def log_snapshot_if_new(
     iv: float | None, spot_price: float | None,
     breakeven: float | None, max_profit: float | None, max_loss: float | None,
     days_to_earnings: int | None, vix: float | None,
+    delta: float | None = None, gamma: float | None = None,
+    theta: float | None = None, vega: float | None = None,
 ) -> bool:
     """
     Appends a row if this exact spread config hasn't been logged today.
     Returns True if a new row was written, False if already logged.
+
+    Row-building is header-driven: we read the sheet's actual header row
+    and match field names to it, rather than assuming a fixed column
+    order. This means adding, removing, or reordering columns in Sheets
+    (like your manual iv_rank/iv_percentile/iv_hv_ratio columns) never
+    requires a code change — any header we don't have a value for is
+    just left blank automatically.
     """
     key = (ticker, expiry, option_type, float(long_strike), float(short_strike))
     if key in _existing_keys_today():
         return False
 
     ws = _get_worksheet()
-    row = [
-        date.today().isoformat(), ticker, expiry, option_type,
-        long_strike, short_strike,
-        iv, spot_price, breakeven, max_profit, max_loss,
-        days_to_earnings, vix,
-        "",  # iv_rank_manual — fill in by hand
-    ]
+    header = ws.row_values(1)
+
+    data = {
+        "date": date.today().isoformat(),
+        "ticker": ticker, "expiry": expiry, "option_type": option_type,
+        "long_strike": long_strike, "short_strike": short_strike,
+        "iv": iv, "spot_price": spot_price,
+        "breakeven": breakeven, "max_profit": max_profit, "max_loss": max_loss,
+        "days_to_earnings": days_to_earnings, "vix": vix,
+        "delta": delta, "gamma": gamma, "theta": theta, "vega": vega,
+    }
+    row = [data.get(col, "") for col in header]
     ws.append_row(row)
     _existing_keys_today.clear()  # invalidate cache so this write is reflected immediately
     return True
