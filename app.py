@@ -5,14 +5,16 @@ import plotly.graph_objects as go
 from options_data import (
     get_available_expiries,
     get_leg_quote,
+    get_company_name,
+    fetch_current_price,
     fetch_vix,
     get_days_to_earnings,
 )
+from sheets_log import log_snapshot_if_new
 from analytics import (
     compute_vertical_spread_payoff,
     compute_breakevens,
     compute_max_profit_loss,
-    compute_iv_rank,
 )
 
 st.set_page_config(page_title="Options Trading Dashboard", page_icon="📈", layout="wide")
@@ -26,10 +28,12 @@ for i in range(num_tickers):
     tickers.append(st.sidebar.text_input(f"Ticker {i + 1}", value=default, key=f"ticker_{i}"))
 
 vix = fetch_vix()
+st.caption(f"VIX: {vix:.1f}")
 
 
 def render_ticker_panel(ticker: str):
     st.subheader(ticker)
+    st.caption(get_company_name(ticker))
 
     expiries = get_available_expiries(ticker)
     if not expiries:
@@ -71,7 +75,13 @@ def render_ticker_panel(ticker: str):
         fig = go.Figure()
         fig.add_trace(go.Scatter(x=price_range, y=pnl, mode="lines", name="P&L"))
         fig.add_hline(y=0, line_dash="dot")
-        fig.update_layout(height=280, margin=dict(l=10, r=10, t=10, b=10))
+        spot_price = fetch_current_price(ticker)
+        if spot_price is not None:
+            fig.add_vline(
+                x=spot_price, line_dash="dash", line_color="gray",
+                annotation_text=f"Spot {spot_price:.2f}", annotation_position="top"
+            )
+        fig.update_layout(height=280, margin=dict(l=10, r=10, t=35, b=10))
         st.plotly_chart(fig, use_container_width=True)
     except NotImplementedError:
         st.info("Payoff chart will render once compute_vertical_spread_payoff is filled in (analytics.py).")
@@ -88,17 +98,13 @@ def render_ticker_panel(ticker: str):
         st.caption("Breakeven / max P&L will show once analytics.py is filled in.")
 
     # --- context metrics row ---
-    try:
-        iv_rank = compute_iv_rank(long_leg["impliedVolatility"], iv_history=None)
-        iv_rank_display = f"{iv_rank:.0f}" if iv_rank is not None else "—"
-    except NotImplementedError:
-        iv_rank_display = "—"
+    iv = long_leg.get("impliedVolatility")
+    iv_display = f"{iv * 100:.1f}%" if iv is not None else "—"
 
     days_to_earnings = get_days_to_earnings(ticker)
-    m1, m2, m3 = st.columns(3)
-    m1.metric("IV rank", iv_rank_display)
-    m2.metric("VIX", f"{vix:.1f}")
-    m3.metric("Earnings in", f"{days_to_earnings}d" if days_to_earnings is not None else "—")
+    m1, m2 = st.columns(2)
+    m1.metric("IV (current)", iv_display)
+    m2.metric("Earnings in", f"{days_to_earnings}d" if days_to_earnings is not None else "—")
 
 
 cols = st.columns(num_tickers)

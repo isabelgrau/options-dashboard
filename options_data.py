@@ -55,6 +55,26 @@ def get_leg_quote(ticker: str, expiry: str, strike: float, option_type: str) -> 
     return row.iloc[0].to_dict()
 
 
+@st.cache_data(ttl=EARNINGS_CACHE_TTL)  # company name basically never changes; reuse the long TTL
+def get_company_name(ticker: str) -> str:
+    """Return the company's full name, or the ticker itself if unavailable."""
+    tk = yf.Ticker(ticker)
+    try:
+        return tk.info.get("longName", ticker)
+    except Exception:
+        return ticker
+
+
+@st.cache_data(ttl=VIX_CACHE_TTL)
+def fetch_current_price(ticker: str) -> float | None:
+    """Most recent close price for the ticker — used to mark spot price on the payoff chart."""
+    tk = yf.Ticker(ticker)
+    hist = tk.history(period="5d")
+    if hist.empty:
+        return None
+    return float(hist["Close"].iloc[-1])
+
+
 @st.cache_data(ttl=VIX_CACHE_TTL)
 def fetch_vix() -> float:
     """Current VIX close (most recent available trading day)."""

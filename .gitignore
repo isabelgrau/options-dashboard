@@ -6,3 +6,5 @@ __pycache__/
 test.py
 test.ipynb
 tempCodeRunnerFile.py
+credentials.json
+.streamlit/secrets.toml
