@@ -22,9 +22,11 @@ jobs:
         run: pip install -r requirements.txt
 
       - name: Restore Streamlit secrets
+        env:
+          STREAMLIT_SECRETS_TOML: ${{ secrets.STREAMLIT_SECRETS_TOML }}
         run: |
           mkdir -p .streamlit
-          echo "${{ secrets.STREAMLIT_SECRETS_TOML }}" > .streamlit/secrets.toml
+          printf '%s' "$STREAMLIT_SECRETS_TOML" > .streamlit/secrets.toml
 
       - name: Run daily snapshot
         run: python scheduled_snapshot.py
