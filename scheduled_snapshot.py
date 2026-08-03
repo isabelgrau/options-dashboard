@@ -32,7 +32,16 @@ def get_tracked_positions() -> list[dict]:
     sheet = client.open(SHEET_NAME)
     ws = sheet.worksheet(TRACKED_WORKSHEET_NAME)
     records = ws.get_all_records()
-    return [r for r in records if str(r.get("status", "")).strip().lower() == "active"]
+    active, skipped = [], []
+    for r in records:
+        if str(r.get("status", "")).strip().lower() == "active":
+            active.append(r)
+        else:
+            skipped.append(r)
+    for r in skipped:
+        print(f"SKIP (status={r.get('status')!r})  {r.get('ticker')} {r.get('expiry')} "
+              f"{r.get('long_strike')}/{r.get('short_strike')}")
+    return active
 
 
 def log_position(pos: dict, vix: float, risk_free_rate: float):
@@ -74,7 +83,13 @@ def log_position(pos: dict, vix: float, risk_free_rate: float):
         delta=spread_greeks.get("delta"), gamma=spread_greeks.get("gamma"),
         theta=spread_greeks.get("theta"), vega=spread_greeks.get("vega"),
     )
-    print(f"{'LOGGED' if logged else 'ALREADY LOGGED'}  {ticker} {expiry} {long_strike}/{short_strike}")
+    status = "LOGGED" if logged else "ALREADY LOGGED"
+    iv_str = f"{iv * 100:.1f}%" if iv is not None else "—"
+    delta_str = f"{spread_greeks.get('delta'):.3f}" if spread_greeks.get("delta") is not None else "—"
+    print(
+        f"{status}  {ticker} {expiry} {long_strike}/{short_strike}  "
+        f"| IV {iv_str}  delta {delta_str}  breakeven {breakeven:.2f}"
+    )
 
 
 def main():
