@@ -14,7 +14,7 @@ import gspread
 from google.oauth2.service_account import Credentials
 from datetime import date
 
-SHEET_NAME = "options_dashboard_log"   # rename to match your actual Google Sheet's name
+SHEET_NAME = "Options Dashboard Log"   # rename to match your actual Google Sheet's name
 WORKSHEET_NAME = "log"                 # the tab within that Sheet
 CREDENTIALS_PATH = "credentials.json"  # local-dev fallback only; see _get_client
 
