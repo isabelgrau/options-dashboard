@@ -75,6 +75,29 @@ def fetch_current_price(ticker: str) -> float | None:
     return float(hist["Close"].iloc[-1])
 
 
+@st.cache_data(ttl=CHAIN_CACHE_TTL)
+def get_nearest_atm_iv(ticker: str, spot_price: float) -> tuple:
+    """
+    Nearest (soonest) expiry's ATM call IV — a consistent, repeatable
+    reference point for a ticker with no specific position attached.
+    Not the same precision as a real position's leg-specific IV; this is
+    a general vol-level indicator for watchlist tracking only.
+
+    Returns (iv, expiry_used) — either may be None if no chain data exists.
+    """
+    expiries = get_available_expiries(ticker)
+    if not expiries:
+        return None, None
+    nearest_expiry = expiries[0]  # yfinance returns these in chronological order
+    calls = fetch_option_chain(ticker, nearest_expiry)["calls"]
+    if calls.empty:
+        return None, nearest_expiry
+    calls = calls.copy()
+    calls["strike_diff"] = (calls["strike"] - spot_price).abs()
+    atm_row = calls.loc[calls["strike_diff"].idxmin()]
+    return float(atm_row["impliedVolatility"]), nearest_expiry
+
+
 @st.cache_data(ttl=VIX_CACHE_TTL)
 def fetch_risk_free_rate() -> float:
     """

@@ -14,7 +14,7 @@ import gspread
 from google.oauth2.service_account import Credentials
 from datetime import date
 
-SHEET_NAME = "Options Dashboard Log"   # rename to match your actual Google Sheet's name
+SHEET_NAME = "options_dashboard_log"   # rename to match your actual Google Sheet's name
 WORKSHEET_NAME = "log"                 # the tab within that Sheet
 CREDENTIALS_PATH = "credentials.json"  # local-dev fallback only; see _get_client
 
@@ -118,4 +118,62 @@ def log_snapshot_if_new(
     row = [data.get(col, "") for col in header]
     ws.append_row(row)
     _existing_keys_today.clear()  # invalidate cache so this write is reflected immediately
+    return True
+
+
+# ============================================================
+# Watchlist: ticker-level tracking, no position attached.
+# Separate from the spread-level log above on purpose — a watchlist
+# entry isn't a position, and mixing the two schemas (strikes vs. no
+# strikes) would make later analysis messier, not simpler.
+# ============================================================
+
+WATCHLIST_TAB_NAME = "watchlist"              # you maintain this: just a list of tickers
+WATCHLIST_LOG_TAB_NAME = "watchlist_log"       # auto-created on first write, like the main log
+WATCHLIST_LOG_COLUMNS = ["date", "ticker", "spot_price", "atm_iv", "atm_expiry", "vix"]
+
+
+def get_watchlist_tickers() -> list:
+    """Reads the 'watchlist' tab — expects a 'ticker' column, one ticker per row."""
+    client = _get_client()
+    sheet = client.open(SHEET_NAME)
+    ws = sheet.worksheet(WATCHLIST_TAB_NAME)
+    records = ws.get_all_records()
+    return [str(r["ticker"]).strip().upper() for r in records if r.get("ticker")]
+
+
+@st.cache_resource
+def _get_watchlist_log_worksheet():
+    client = _get_client()
+    sheet = client.open(SHEET_NAME)
+    try:
+        ws = sheet.worksheet(WATCHLIST_LOG_TAB_NAME)
+    except gspread.WorksheetNotFound:
+        ws = sheet.add_worksheet(title=WATCHLIST_LOG_TAB_NAME, rows=1000, cols=len(WATCHLIST_LOG_COLUMNS))
+        ws.append_row(WATCHLIST_LOG_COLUMNS)
+    return ws
+
+
+@st.cache_data(ttl=300)
+def _existing_watchlist_keys_today() -> set:
+    ws = _get_watchlist_log_worksheet()
+    records = ws.get_all_records()
+    today_str = date.today().isoformat()
+    return {row.get("ticker") for row in records if row.get("date") == today_str}
+
+
+def log_watchlist_snapshot_if_new(ticker: str, spot_price, atm_iv, atm_expiry, vix) -> bool:
+    """Same dedup pattern as the main log, keyed by ticker + date only (no strikes involved)."""
+    if ticker in _existing_watchlist_keys_today():
+        return False
+
+    ws = _get_watchlist_log_worksheet()
+    header = ws.row_values(1)
+    data = {
+        "date": date.today().isoformat(), "ticker": ticker,
+        "spot_price": spot_price, "atm_iv": atm_iv, "atm_expiry": atm_expiry, "vix": vix,
+    }
+    row = [data.get(col, "") for col in header]
+    ws.append_row(row)
+    _existing_watchlist_keys_today.clear()
     return True

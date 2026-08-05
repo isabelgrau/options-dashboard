@@ -18,10 +18,14 @@ from options_data import (
     fetch_vix,
     fetch_risk_free_rate,
     get_days_to_earnings,
+    get_nearest_atm_iv,
 )
 from analytics import compute_breakevens, compute_max_profit_loss
 from greeks import compute_leg_greeks, compute_spread_greeks
-from sheets_log import log_snapshot_if_new, _get_client, SHEET_NAME
+from sheets_log import (
+    log_snapshot_if_new, _get_client, SHEET_NAME,
+    get_watchlist_tickers, log_watchlist_snapshot_if_new,
+)
 
 TRACKED_WORKSHEET_NAME = "tracked_positions"
 
@@ -92,21 +96,42 @@ def log_position(pos: dict, vix: float, risk_free_rate: float):
     )
 
 
+def log_watchlist(vix: float):
+    tickers = get_watchlist_tickers()
+    if not tickers:
+        print("No watchlist tickers found — nothing to log for watchlist.")
+        return
+    for ticker in tickers:
+        spot_price = fetch_current_price(ticker)
+        if spot_price is None:
+            print(f"SKIP (watchlist)  {ticker} — couldn't get spot price")
+            continue
+        atm_iv, atm_expiry = get_nearest_atm_iv(ticker, spot_price)
+        logged = log_watchlist_snapshot_if_new(ticker, spot_price, atm_iv, atm_expiry, vix)
+        iv_str = f"{atm_iv * 100:.1f}%" if atm_iv is not None else "—"
+        status = "LOGGED" if logged else "ALREADY LOGGED"
+        print(f"{status} (watchlist)  {ticker}  | spot {spot_price:.2f}  ATM IV {iv_str} ({atm_expiry})")
+
+
 def main():
+    client = _get_client()
+    resolved_sheet = client.open(SHEET_NAME)
+    print(f"Resolved spreadsheet: '{resolved_sheet.title}'  ({resolved_sheet.url})")
+
     vix = fetch_vix()
     risk_free_rate = fetch_risk_free_rate()
 
     positions = get_tracked_positions()
     if not positions:
-        print("No active tracked positions found — nothing to log.")
-        return
-
+        print("No active tracked positions found — nothing to log for positions.")
     for pos in positions:
         try:
             log_position(pos, vix, risk_free_rate)
         except Exception as e:
             # One bad row (typo, delisted ticker) shouldn't kill the whole run.
             print(f"ERROR logging {pos}: {e}")
+
+    log_watchlist(vix)
 
 
 if __name__ == "__main__":
