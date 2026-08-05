@@ -22,6 +22,10 @@ from analytics import (
 st.set_page_config(page_title="Options Trading Dashboard", page_icon="📈", layout="wide")
 st.title("Options Trading Dashboard")
 
+# ---- Owner check: gates logging only, never access to the app itself ----
+owner_key = st.sidebar.text_input("Owner key", type="password", help="Leave blank unless you're the dashboard owner.")
+is_owner = bool(owner_key) and owner_key == st.secrets.get("owner_passphrase", None)
+
 # ---- Sidebar: how many tickers to compare ----
 num_tickers = st.sidebar.radio("Tickers to compare", [1, 2, 3], index=0)
 tickers = []
@@ -128,8 +132,8 @@ def render_ticker_panel(ticker: str):
             g3.metric("Theta", f"{spread_greeks['theta']:.3f}")
             g4.metric("Vega", f"{spread_greeks['vega']:.3f}")
 
-    # --- log this view to the daily snapshot sheet, if we have real numbers ---
-    if breakevens is not None and max_pl is not None:
+    # --- log this view to the daily snapshot sheet, only if this is you ---
+    if is_owner and breakevens is not None and max_pl is not None:
         try:
             greeks_kwargs = spread_greeks or {}
             logged = log_snapshot_if_new(
