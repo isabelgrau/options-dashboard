@@ -7,6 +7,7 @@ import streamlit as st
 import yfinance as yf
 import pandas as pd
 from datetime import datetime
+from zoneinfo import ZoneInfo
 
 # Cache TTLs are deliberately short — long enough to kill repeat calls while
 # you're tweaking strikes on the same page load, short enough that you're not
@@ -76,19 +77,32 @@ def fetch_current_price(ticker: str) -> float | None:
 
 
 @st.cache_data(ttl=CHAIN_CACHE_TTL)
-def get_nearest_atm_iv(ticker: str, spot_price: float) -> tuple:
+def get_nearest_atm_iv(ticker: str, spot_price: float, min_days_to_expiry: int = 8) -> tuple:
     """
-    Nearest (soonest) expiry's ATM call IV — a consistent, repeatable
-    reference point for a ticker with no specific position attached.
-    Not the same precision as a real position's leg-specific IV; this is
-    a general vol-level indicator for watchlist tracking only.
+    Nearest expiry with at least `min_days_to_expiry` calendar days remaining,
+    then that expiry's ATM call IV. 8 days matches IBKR's own V30 convention —
+    0DTE/very-near-term contracts produce unreliable IV readings (near-zero
+    time value makes the underlying vol estimate numerically unstable, and
+    thin same-day volume can distort it further), so we skip past them
+    rather than trying to use or correct for them.
 
-    Returns (iv, expiry_used) — either may be None if no chain data exists.
+    "Days remaining" is computed against the current US Eastern date, not
+    the machine's local clock — this may run inside GitHub Actions (UTC),
+    and US option expirations are an Eastern-time market concept.
     """
     expiries = get_available_expiries(ticker)
     if not expiries:
         return None, None
-    nearest_expiry = expiries[0]  # yfinance returns these in chronological order
+
+    now_et = datetime.now(ZoneInfo("America/New_York"))
+    eligible = [
+        e for e in expiries
+        if (datetime.strptime(e, "%Y-%m-%d").date() - now_et.date()).days >= min_days_to_expiry
+    ]
+    if not eligible:
+        return None, None
+    nearest_expiry = eligible[0]
+
     calls = fetch_option_chain(ticker, nearest_expiry)["calls"]
     if calls.empty:
         return None, nearest_expiry

@@ -131,7 +131,10 @@ def main():
             # One bad row (typo, delisted ticker) shouldn't kill the whole run.
             print(f"ERROR logging {pos}: {e}")
 
-    log_watchlist(vix)
+    # Watchlist logging paused (2026-08-09) — atm_iv proxy confirmed unreliable
+    # (single-expiry, no interpolation) vs. IBKR's real V30 methodology.
+    # log_watchlist() left intact below in case this gets revisited later.
+    # log_watchlist(vix)
 
 
 if __name__ == "__main__":

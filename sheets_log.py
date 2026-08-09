@@ -12,11 +12,22 @@ marker to remember. Revisit if the noise ever becomes annoying in practice.
 import streamlit as st
 import gspread
 from google.oauth2.service_account import Credentials
-from datetime import date
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
-SHEET_NAME = "Options Dashboard Log"   # rename to match your actual Google Sheet's name
+SHEET_NAME = "Options Dashboard Log"   # must match your actual Google Sheet's title exactly
 WORKSHEET_NAME = "log"                 # the tab within that Sheet
 CREDENTIALS_PATH = "credentials.json"  # local-dev fallback only; see _get_client
+
+
+def _today_et() -> str:
+    """
+    Today's date per US Eastern time, not the machine's local clock.
+    Matters because this can run inside GitHub Actions (UTC) — UTC's date
+    rolls over at 7-8pm Eastern, not near Eastern midnight, so a naive
+    date.today() could silently log tomorrow's date for part of the evening.
+    """
+    return datetime.now(ZoneInfo("America/New_York")).date().isoformat()
 
 COLUMNS = [
     "date", "ticker", "expiry", "option_type",
@@ -68,7 +79,7 @@ def _existing_keys_today() -> set:
     """
     ws = _get_worksheet()
     records = ws.get_all_records()
-    today_str = date.today().isoformat()
+    today_str = _today_et()
     keys = set()
     for row in records:
         if row.get("date") == today_str:
@@ -107,7 +118,7 @@ def log_snapshot_if_new(
     header = ws.row_values(1)
 
     data = {
-        "date": date.today().isoformat(),
+        "date": _today_et(),
         "ticker": ticker, "expiry": expiry, "option_type": option_type,
         "long_strike": long_strike, "short_strike": short_strike,
         "iv": iv, "spot_price": spot_price,
@@ -158,7 +169,7 @@ def _get_watchlist_log_worksheet():
 def _existing_watchlist_keys_today() -> set:
     ws = _get_watchlist_log_worksheet()
     records = ws.get_all_records()
-    today_str = date.today().isoformat()
+    today_str = _today_et()
     return {row.get("ticker") for row in records if row.get("date") == today_str}
 
 
@@ -170,7 +181,7 @@ def log_watchlist_snapshot_if_new(ticker: str, spot_price, atm_iv, atm_expiry, v
     ws = _get_watchlist_log_worksheet()
     header = ws.row_values(1)
     data = {
-        "date": date.today().isoformat(), "ticker": ticker,
+        "date": _today_et(), "ticker": ticker,
         "spot_price": spot_price, "atm_iv": atm_iv, "atm_expiry": atm_expiry, "vix": vix,
     }
     row = [data.get(col, "") for col in header]
