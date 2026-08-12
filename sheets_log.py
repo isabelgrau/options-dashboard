@@ -127,7 +127,15 @@ def log_snapshot_if_new(
         "delta": delta, "gamma": gamma, "theta": theta, "vega": vega,
     }
     row = [data.get(col, "") for col in header]
-    ws.append_row(row)
+
+    # Explicit row targeting instead of append_row()'s automatic table-range
+    # detection — that auto-detection can misfire when other columns (like
+    # your dte formula) have values filled further down than the real data,
+    # making Sheets misjudge where the table actually ends. Column A ("date")
+    # is fully controlled by this script and never touched by your formulas,
+    # so counting it directly gives a reliable next-row position.
+    next_row = len(ws.col_values(1)) + 1
+    ws.update(f"A{next_row}", [row], value_input_option="RAW")
     _existing_keys_today.clear()  # invalidate cache so this write is reflected immediately
     return True
 
@@ -185,6 +193,7 @@ def log_watchlist_snapshot_if_new(ticker: str, spot_price, atm_iv, atm_expiry, v
         "spot_price": spot_price, "atm_iv": atm_iv, "atm_expiry": atm_expiry, "vix": vix,
     }
     row = [data.get(col, "") for col in header]
-    ws.append_row(row)
+    next_row = len(ws.col_values(1)) + 1
+    ws.update(f"A{next_row}", [row], value_input_option="RAW")
     _existing_watchlist_keys_today.clear()
     return True
