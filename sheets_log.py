@@ -140,6 +140,68 @@ def log_snapshot_if_new(
     return True
 
 
+def get_logged_positions() -> list:
+    """
+    Unique (ticker, expiry, option_type, long_strike, short_strike) combos
+    that have at least one logged row — feeds the trend view's position picker.
+    """
+    ws = _get_worksheet()
+    records = ws.get_all_records()
+    seen = set()
+    combos = []
+    for r in records:
+        key = (
+            r.get("ticker"), str(r.get("expiry")), r.get("option_type"),
+            float(r.get("long_strike", 0)), float(r.get("short_strike", 0)),
+        )
+        if key not in seen and key[0]:  # skip any blank/malformed rows
+            seen.add(key)
+            combos.append(key)
+    return combos
+
+
+def get_position_history(ticker: str, expiry: str, option_type: str, long_strike: float, short_strike: float) -> list:
+    """All logged rows for one exact spread config, sorted by date."""
+    ws = _get_worksheet()
+    records = ws.get_all_records()
+    matches = [
+        r for r in records
+        if r.get("ticker") == ticker and str(r.get("expiry")) == str(expiry)
+        and r.get("option_type") == option_type
+        and float(r.get("long_strike", -1)) == float(long_strike)
+        and float(r.get("short_strike", -1)) == float(short_strike)
+    ]
+    matches.sort(key=lambda r: r.get("date", ""))
+    return matches
+
+
+TRACKED_POSITIONS_TAB_NAME = "tracked_positions"
+
+
+def get_active_position_keys() -> set:
+    """
+    Active rows from the tracked_positions tab, as normalized
+    (ticker, expiry, option_type, long_strike, short_strike) keys — used to
+    filter the trend view's picker down to real tracked positions, not
+    every ad-hoc ticker/strike combo ever glanced at via log-on-view.
+    """
+    client = _get_client()
+    sheet = client.open(SHEET_NAME)
+    ws = sheet.worksheet(TRACKED_POSITIONS_TAB_NAME)
+    records = ws.get_all_records()
+    keys = set()
+    for r in records:
+        if str(r.get("status", "")).strip().lower() == "active":
+            keys.add((
+                str(r.get("ticker", "")).strip().upper(),
+                str(r.get("expiry", "")).strip(),
+                str(r.get("option_type", "")).strip().lower(),
+                float(r.get("long_strike", 0)),
+                float(r.get("short_strike", 0)),
+            ))
+    return keys
+
+
 # ============================================================
 # Watchlist: ticker-level tracking, no position attached.
 # Separate from the spread-level log above on purpose — a watchlist

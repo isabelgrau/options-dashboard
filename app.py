@@ -18,13 +18,21 @@ from analytics import (
     compute_breakevens,
     compute_max_profit_loss,
 )
+from trend_view import render_trend_view
 
 st.set_page_config(page_title="Options Trading Dashboard", page_icon="📈", layout="wide")
 st.title("Options Trading Dashboard")
 
-# ---- Owner check: gates logging only, never access to the app itself ----
+# ---- Owner check: gates logging, AND whether Trend view even appears as an option ----
 owner_key = st.sidebar.text_input("Owner key", type="password", help="Leave blank unless you're the dashboard owner.")
 is_owner = bool(owner_key) and owner_key == st.secrets.get("owner_passphrase", None)
+
+view_options = ["Live dashboard"] + (["Trend view (beta)"] if is_owner else [])
+view = st.radio("View", view_options, horizontal=True, label_visibility="collapsed")
+
+if view == "Trend view (beta)":
+    render_trend_view()
+    st.stop()
 
 # ---- Sidebar: how many tickers to compare ----
 num_tickers = st.sidebar.radio("Tickers to compare", [1, 2, 3], index=0)

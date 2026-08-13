@@ -61,8 +61,24 @@ def log_position(pos: dict, vix: float, risk_free_rate: float):
         print(f"SKIP  {ticker} {expiry} {long_strike}/{short_strike} — strikes not found in chain (expired? typo?)")
         return
 
-    long_price = long_leg["lastPrice"]
-    short_price = short_leg["lastPrice"]
+    # Optional entry prices distinguish real (committed) positions from
+    # hypothetical ones you're still watching before pulling the trigger.
+    # Blank -> keep live spot-based pricing (breakeven/max P&L drift with
+    # the market, useful while deciding). Filled in -> lock to what you
+    # actually paid, so these stop moving once the real trade is on.
+    entry_long_price = pos.get("entry_long_price")
+    entry_short_price = pos.get("entry_short_price")
+    has_entry_price = entry_long_price not in (None, "", 0) and entry_short_price not in (None, "", 0)
+
+    if has_entry_price:
+        long_price = float(entry_long_price)
+        short_price = float(entry_short_price)
+        pricing_mode = "entry"
+    else:
+        long_price = long_leg["lastPrice"]
+        short_price = short_leg["lastPrice"]
+        pricing_mode = "live"
+
     iv = long_leg.get("impliedVolatility")
     spot_price = fetch_current_price(ticker)
 
@@ -91,7 +107,7 @@ def log_position(pos: dict, vix: float, risk_free_rate: float):
     iv_str = f"{iv * 100:.1f}%" if iv is not None else "—"
     delta_str = f"{spread_greeks.get('delta'):.3f}" if spread_greeks.get("delta") is not None else "—"
     print(
-        f"{status}  {ticker} {expiry} {long_strike}/{short_strike}  "
+        f"{status}  {ticker} {expiry} {long_strike}/{short_strike}  [{pricing_mode}-priced]  "
         f"| IV {iv_str}  delta {delta_str}  breakeven {breakeven:.2f}"
     )
 
